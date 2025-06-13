@@ -68,14 +68,19 @@ async function startServer() {
     })
   );
 
-  const PORT = process.env.PORT || 4000;
-  
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`);
-    console.log(`🚀 Subscriptions ready at ws://localhost:${PORT}/graphql`);
-  });
+  // For local development
+  if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 4000;
+    httpServer.listen(PORT, () => {
+      console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`);
+      console.log(`🚀 Subscriptions ready at ws://localhost:${PORT}/graphql`);
+    });
+  }
 }
 
 startServer().catch((err) => {
   console.error('Error starting server:', err);
-}); 
+});
+
+// Export the Express API
+export default app; 

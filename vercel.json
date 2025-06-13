@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "routes": [
+    {
+      "src": "/api/graphql",
+      "dest": "/api/graphql.ts"
+    }
+  ]
+} 
