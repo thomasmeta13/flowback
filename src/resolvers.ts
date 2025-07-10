@@ -88,14 +88,18 @@ export const resolvers = {
       }
     },
 
-    libraryBooks: async () => {
+    libraryBooks: async (_: any, { userId }: { userId: string }) => {
       try {
-        const { data, error } = await supabase.from("library").select("*");
+        const { data, error } = await supabase
+          .from("library")
+          .select("*")
+          .eq("uploaded_by", userId);
+
         if (error) throw error;
         return data;
       } catch (error) {
         handleSupabaseError(error);
-        return []; // Return empty array as fallback
+        return [];
       }
     },
 
@@ -313,9 +317,9 @@ export const resolvers = {
         if (!payload || !payload.email) {
           throw new Error("Invalid Google token");
         }
-        
+
         const email = payload.email;
-        const display_name = payload.name || email.split('@')[0];
+        const display_name = payload.name || email.split("@")[0];
 
         const { data: existingUser, error: existingError } = await supabase
           .from("users")
@@ -361,7 +365,12 @@ export const resolvers = {
       try {
         // Decode Apple JWT to extract email & sub
         const decoded = jwtDecode(idToken);
-        if (!decoded || typeof decoded !== 'object' || !('email' in decoded) || !('sub' in decoded)) {
+        if (
+          !decoded ||
+          typeof decoded !== "object" ||
+          !("email" in decoded) ||
+          !("sub" in decoded)
+        ) {
           throw new Error("Invalid Apple token");
         }
 

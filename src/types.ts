@@ -121,7 +121,7 @@ export const typeDefs = `#graphql
     userSessions(userId: ID!): [Session!]!
     users: [User!]!
     user(id: ID!): User
-    libraryBooks: [Library!]!
+    libraryBooks(userId: ID!): [Library!]!
     getBookProgress(userId: ID!, bookId: ID!): ReadingProgress
     getBookRemainingContent(userId: ID!, bookId: ID!): String
     getBookProgressDetails(userId: ID!, bookId: ID!): BookProgressDetails
