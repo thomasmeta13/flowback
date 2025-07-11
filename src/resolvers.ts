@@ -93,7 +93,7 @@ export const resolvers = {
         const { data, error } = await supabase
           .from("library")
           .select("*")
-          .eq("uploaded_by", userId);
+          .or(`uploaded_by.eq.${userId},uploaded_by.is.null`);
 
         if (error) throw error;
         return data;
