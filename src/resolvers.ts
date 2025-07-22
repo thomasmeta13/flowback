@@ -286,6 +286,23 @@ export const resolvers = {
   },
 
   Mutation: {
+    getSignedUploadUrl: async (
+      _: any,
+      { userId, fileName }: { userId: string; fileName: string }
+    ) => {
+      const filePath = `${userId}/${Date.now()}_${fileName}`;
+      const { data, error } = await supabase.storage
+        .from("pdf-uploads")
+        .createSignedUploadUrl(filePath, { upsert: true });
+
+      if (error) throw error;
+
+      return {
+        signedUrl: data.signedUrl,
+        filePath,
+        publicUrl: `https://ezwoigvemjyknhuopfym.supabase.co/storage/v1/object/public/pdf-uploads/${filePath}`,
+      };
+    },
     createUser: async (
       _: any,
       {
