@@ -178,4 +178,14 @@ export const typeDefs = `#graphql
       lastPosition: Int!
     ): ReadingProgress!
   }
+
+  type SignedUploadPayload {
+    signedUrl: String!
+    filePath: String!
+    publicUrl: String!
+  }
+
+  extend type Mutation {
+    getSignedUploadUrl(userId: ID!, fileName: String!): SignedUploadPayload!
+  }
 `;
