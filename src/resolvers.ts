@@ -1,6 +1,15 @@
 import { verifyGoogleToken } from "./auth/google";
 import { supabase, handleSupabaseError } from "./db/supabase";
 import { jwtDecode } from "jwt-decode";
+import fetch from "node-fetch";
+import pdf from "pdf-parse";
+
+async function extractTextFromPDF(url: string): Promise<string> {
+  const res = await fetch(url);
+  const buffer = await res.buffer();
+  const data = await pdf(buffer);
+  return data.text;
+}
 
 export const resolvers = {
   Query: {
@@ -497,24 +506,42 @@ export const resolvers = {
         userId,
         title,
         content,
+        fileUrl,
+        fileType,
       }: {
         userId: string;
         title: string;
-        content: string;
+        content?: string;
+        fileUrl?: string;
+        fileType?: string;
       }
     ) => {
       try {
+        const isPDF = fileType === "pdf";
+        const finalContent =
+          isPDF && fileUrl
+            ? await extractTextFromPDF(fileUrl) // Define this
+            : content || "";
+
+        const wordList = finalContent.trim().split(/\s+/);
+        const wordCount = wordList.length;
+        const estimatedTime = Math.ceil(wordCount / 200);
+
         const { data, error } = await supabase
           .from("library")
           .insert([
             {
               title,
-              content,
-              description: "User uploaded document",
-              estimated_time: Math.ceil(content.split(/\s+/).length / 200),
-              length: content.split(/\s+/).length,
+              content: finalContent,
+              description: isPDF
+                ? "User uploaded PDF"
+                : "User uploaded document",
+              estimated_time: estimatedTime,
+              length: wordCount,
               is_document: true,
               uploaded_by: userId,
+              file_url: fileUrl,
+              file_type: fileType,
             },
           ])
           .select()
@@ -523,6 +550,7 @@ export const resolvers = {
         if (error) throw error;
         return data;
       } catch (error) {
+        console.error("createDocument error:", error);
         handleSupabaseError(error);
       }
     },
