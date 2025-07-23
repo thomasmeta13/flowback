@@ -1,5 +1,5 @@
 import { verifyGoogleToken } from "./auth/google";
-import { supabase, handleSupabaseError } from "./db/supabase";
+import { supabase, handleSupabaseError, supabaseAdmin } from "./db/supabase";
 import { jwtDecode } from "jwt-decode";
 import fetch from "node-fetch";
 import pdf from "pdf-parse";
@@ -291,7 +291,7 @@ export const resolvers = {
       { userId, fileName }: { userId: string; fileName: string }
     ) => {
       const filePath = `${userId}/${Date.now()}_${fileName}`;
-      const { data, error } = await supabase.storage
+      const { data, error } = await supabaseAdmin.storage
         .from("pdf-uploads")
         .createSignedUploadUrl(filePath, { upsert: true });
 
