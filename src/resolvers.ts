@@ -5,10 +5,26 @@ import fetch from "node-fetch";
 import pdf from "pdf-parse";
 
 async function extractTextFromPDF(url: string): Promise<string> {
-  const res = await fetch(url);
-  const buffer = await res.buffer();
-  const data = await pdf(buffer);
-  return data.text;
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.error("❌ Failed to fetch PDF:", response.status, url);
+      throw new Error(`Failed to fetch PDF from ${url}`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const parsed = await pdf(Buffer.from(buffer));
+
+    if (!parsed.text || parsed.text.trim() === "") {
+      throw new Error("PDF parsed but contains no text");
+    }
+
+    return parsed.text;
+  } catch (err: any) {
+    console.error("❌ PDF parsing failed:", err.message);
+    throw new Error("Invalid PDF structure");
+  }
 }
 
 export const resolvers = {
