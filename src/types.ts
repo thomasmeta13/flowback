@@ -76,6 +76,9 @@ export const typeDefs = `#graphql
     content: String
     length: Int
     estimated_time: String
+    file_url: String
+    file_type: String
+    uploaded_by: String
     created_at: String
     updated_at: String
     is_document: Boolean
@@ -142,7 +145,7 @@ export const typeDefs = `#graphql
 
     loginWithApple(idToken: String!): User!
 
-    createDocument(userId: ID!, title: String!, content: String!): Library
+    createDocument(userId: ID!, title: String!, content: String, fileUrl: String, fileType: String): Library
 
     createSession(
       userId: ID!
