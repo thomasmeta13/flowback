@@ -1,8 +1,8 @@
-import { verifyGoogleToken } from "./auth/google";
 import { supabase, handleSupabaseError, supabaseAdmin } from "./db/supabase";
 import { jwtDecode } from "jwt-decode";
 import fetch from "node-fetch";
 import pdf from "pdf-parse";
+import { OAuth2Client } from "google-auth-library";
 
 async function extractTextFromPDF(url: string): Promise<string> {
   try {
@@ -355,7 +355,10 @@ export const resolvers = {
 
     loginWithGoogle: async (_: any, { idToken }: { idToken: string }) => {
       try {
-        const payload = await verifyGoogleToken(idToken);
+        const client = new OAuth2Client('1075159909088-v4ja77t2ot5ulrfchal1ma0rjcfqe089.apps.googleusercontent.com');
+        const ticket = await client.verifyIdToken({ idToken, audience: '1075159909088-v4ja77t2ot5ulrfchal1ma0rjcfqe089.apps.googleusercontent.com' });
+        const payload = ticket.getPayload();
+        console.log('payload ******* ', payload)
         if (!payload || !payload.email) {
           throw new Error("Invalid Google token");
         }
