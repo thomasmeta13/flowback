@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = "https://ezwoigvemjyknhuopfym.supabase.co";
 const supabaseKey =
@@ -6,9 +6,9 @@ const supabaseKey =
 const supabaseServiceRoleKey =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6d29pZ3ZlbWp5a25odW9wZnltIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NTYyMTQ1OSwiZXhwIjoyMDYxMTk3NDU5fQ.5pEtppKgbHn9FTmcB667XdKC7Gm0DtTWoLi-oq6tF44";
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey);
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+export const supabaseAdmin: SupabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 // Helper function to handle Supabase errors
 export const handleSupabaseError = (error: any) => {

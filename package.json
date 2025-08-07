@@ -25,7 +25,7 @@
     "@apollo/experimental-nextjs-app-support": "^0.12.2",
     "@apollo/server": "^4.9.5",
     "@graphql-tools/schema": "^10.0.0",
-    "@supabase/supabase-js": "^2.39.3",
+    "@supabase/supabase-js": "^2.54.0",
     "apollo-server-express": "^3.12.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

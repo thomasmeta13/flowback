@@ -67,6 +67,9 @@ export const typeDefs = `#graphql
     last_streak_update: String
     total_points: Int!
     highest_streak: Int!
+    diagnostic_step: Int
+    diagnostic_complete: Boolean
+    diagnostic_data: JSON
   }
 
   type Library {
@@ -134,12 +137,37 @@ export const typeDefs = `#graphql
     flowBySlug(slug: String!): Flow
   }
 
+  type Diagnostic {
+    id: ID!
+    user_id: ID!
+    reading_speed: Int
+    breathing_rate: Int
+    memory_score: Int
+    focus_score: Int
+    started_at: String
+    completed_at: String
+    device_id: String
+  }
+
+  input DiagnosticInput {
+    user_id: ID!
+    reading_speed: Int
+    breathing_rate: Int
+    memory_score: Int
+    focus_score: Int
+    started_at: String
+    completed_at: String
+    device_id: String
+  }
+
   type Mutation {
     createUser(
       email: String!
       auth_provider: String!
       display_name: String
     ): User!
+
+    createDiagnostic(input: DiagnosticInput!): Diagnostic!
 
     loginWithGoogle(idToken: String!): User!
 

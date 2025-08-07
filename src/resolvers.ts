@@ -353,20 +353,60 @@ export const resolvers = {
       }
     },
 
+    createDiagnostic: async (_: any, { input }: { input: any }) => {
+      const {
+        user_id,
+        reading_speed,
+        breathing_rate,
+        memory_score,
+        focus_score,
+        started_at,
+        completed_at,
+        device_id,
+      } = input;
+
+      const { data, error } = await supabase
+        .from("diagnostic")
+        .insert([
+          {
+            user_id,
+            reading_speed,
+            breathing_rate,
+            memory_score,
+            focus_score,
+            started_at,
+            completed_at,
+            device_id,
+          },
+        ])
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+
     loginWithGoogle: async (_: any, { idToken }: { idToken: string }) => {
       try {
-        const client = new OAuth2Client('1075159909088-v4ja77t2ot5ulrfchal1ma0rjcfqe089.apps.googleusercontent.com');
-        const ticket = await client.verifyIdToken({ idToken, audience: '1075159909088-v4ja77t2ot5ulrfchal1ma0rjcfqe089.apps.googleusercontent.com' });
+        const client = new OAuth2Client(
+          "1075159909088-v4ja77t2ot5ulrfchal1ma0rjcfqe089.apps.googleusercontent.com"
+        );
+        const ticket = await client.verifyIdToken({
+          idToken,
+          audience:
+            "1075159909088-v4ja77t2ot5ulrfchal1ma0rjcfqe089.apps.googleusercontent.com",
+        });
         const payload = ticket.getPayload();
-        console.log('payload ******* ', payload)
+
         if (!payload || !payload.email) {
           throw new Error("Invalid Google token");
         }
 
-        const email = payload.email;
+        const email = payload.email.toLowerCase();
         const display_name = payload.name || email.split("@")[0];
 
-        const { data: existingUser, error: existingError } = await supabase
+        // Check if user already exists
+        const { data: existingUser, error: existingError } = await supabaseAdmin
           .from("users")
           .select("*")
           .eq("email", email)
@@ -375,7 +415,8 @@ export const resolvers = {
         if (existingError) throw existingError;
 
         if (existingUser) {
-          await supabase
+          // ✅ Update last_login timestamp (optional)
+          await supabaseAdmin
             .from("users")
             .update({ last_login: new Date().toISOString() })
             .eq("id", existingUser.id);
@@ -383,7 +424,8 @@ export const resolvers = {
           return existingUser;
         }
 
-        const { data: newUser, error: insertError } = await supabase
+        // ✅ Create new user
+        const { data: newUser, error: insertError } = await supabaseAdmin
           .from("users")
           .insert([
             {
@@ -392,6 +434,7 @@ export const resolvers = {
               display_name,
               profile_completed: false,
               timezone: "UTC",
+              last_login: new Date().toISOString(),
             },
           ])
           .select()
@@ -402,7 +445,7 @@ export const resolvers = {
         return newUser;
       } catch (error) {
         handleSupabaseError(error);
-        throw error; // Re-throw to be handled by GraphQL
+        throw error;
       }
     },
 
