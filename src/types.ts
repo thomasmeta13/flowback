@@ -216,6 +216,17 @@ export const typeDefs = `#graphql
     publicUrl: String!
   }
 
+  type QuizQuestion {
+    question: String!
+    options: [String!]!
+    correctAnswer: Int!   # 0..3
+    category: String!     # "memorization" | "comprehension"
+  }
+
+  extend type Mutation {
+    generateQuiz(excerpt: String!): [QuizQuestion!]!
+  }
+
   extend type Mutation {
     getSignedUploadUrl(userId: ID!, fileName: String!): SignedUploadPayload!
   }

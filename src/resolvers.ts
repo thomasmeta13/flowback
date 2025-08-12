@@ -3,6 +3,33 @@ import { jwtDecode } from "jwt-decode";
 import fetch from "node-fetch";
 import pdf from "pdf-parse";
 import { OAuth2Client } from "google-auth-library";
+import OpenAI from "openai";
+import crypto from "node:crypto";
+
+// --- Quiz gen setup ---
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+  maxRetries: 0,
+  timeout: 8000, // hard cap to avoid long gens
+});
+
+// very small in-memory cache
+const QUIZ_CACHE = new Map<string, { at: number; items: any[] }>();
+const QUIZ_TTL_MS = 5 * 60 * 1000;
+
+const sha1 = (s: string) => crypto.createHash("sha1").update(s).digest("hex");
+// keep excerpt small → fewer tokens → faster
+const clip = (t: string, n = 1800) =>
+  t.length <= n ? t : t.slice((t.length - n) / 2, (t.length - n) / 2 + n);
+
+const QUIZ_SYSTEM =
+  "You generate 8 SAT-style MCQs strictly answerable from the excerpt. No explanations.";
+const makePrompt = (ex: string) => `EXCERPT:
+"""${ex}"""
+
+Make exactly 8 MCQs: 4 memorization + 4 comprehension.
+Return JSON only:
+{"items":[{"question":"...","options":["A","B","C","D"],"correctAnswer":0,"category":"memorization|comprehension"}]}`;
 
 async function extractTextFromPDF(url: string): Promise<string> {
   try {
@@ -25,6 +52,17 @@ async function extractTextFromPDF(url: string): Promise<string> {
     console.error("❌ PDF parsing failed:", err.message);
     throw new Error("Invalid PDF structure");
   }
+}
+
+const LLM_TIMEOUT_MS = Number(process.env.QUIZ_TIMEOUT_MS ?? 12000);
+
+function withTimeout<T>(p: Promise<T>, ms: number) {
+  return Promise.race<T>([
+    p,
+    new Promise<T>((_, rej) =>
+      setTimeout(() => rej(new Error("LLM_TIMEOUT")), ms)
+    ),
+  ]);
 }
 
 export const resolvers = {
@@ -517,7 +555,7 @@ export const resolvers = {
       }
     ) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("sessions")
           .insert([
             {
@@ -685,7 +723,7 @@ export const resolvers = {
 
         // 1. Get the exercise to get XP and focus rewards
         console.log("Fetching exercise details...");
-        const { data: exercise, error: exerciseError } = await supabase
+        const { data: exercise, error: exerciseError } = await supabaseAdmin
           .from("exercises")
           .select("*")
           .eq("id", parseInt(exerciseId))
@@ -700,7 +738,7 @@ export const resolvers = {
         // 2. Create a new session
         console.log("Creating new session...");
         const startTime = new Date().toISOString();
-        const { data: session, error: sessionError } = await supabase
+        const { data: session, error: sessionError } = await supabaseAdmin
           .from("sessions")
           .insert([
             {
@@ -749,12 +787,13 @@ export const resolvers = {
           // 🔁 Use different ID ranges or `article.source` to distinguish between library and document
           const bookId = article.id;
 
-          const { data: currentProgress, error: progressError } = await supabase
-            .from("reading_progress")
-            .select("*")
-            .eq("user_id", userId)
-            .eq("book_id", bookId)
-            .maybeSingle();
+          const { data: currentProgress, error: progressError } =
+            await supabaseAdmin
+              .from("reading_progress")
+              .select("*")
+              .eq("user_id", userId)
+              .eq("book_id", bookId)
+              .maybeSingle();
 
           if (progressError && progressError.code !== "PGRST116") {
             console.error("Error fetching reading progress:", progressError);
@@ -762,7 +801,7 @@ export const resolvers = {
           }
 
           if (currentProgress) {
-            const { error: updateError } = await supabase
+            const { error: updateError } = await supabaseAdmin
               .from("reading_progress")
               .update({
                 words_flashed: newWordsFlashed,
@@ -777,7 +816,7 @@ export const resolvers = {
               throw updateError;
             }
           } else {
-            const { error: createError } = await supabase
+            const { error: createError } = await supabaseAdmin
               .from("reading_progress")
               .insert([
                 {
@@ -798,15 +837,16 @@ export const resolvers = {
 
         // 4. Get current user progress or create new if doesn't exist
         console.log("Fetching user progress...");
-        const { data: currentProgress, error: progressError } = await supabase
-          .from("user_progress")
-          .select("*")
-          .eq("user_id", userId)
-          .maybeSingle();
+        const { data: currentProgress, error: progressError } =
+          await supabaseAdmin
+            .from("user_progress")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle();
 
         if (progressError && progressError.code === "PGRST116") {
           console.log("No existing progress found, creating new progress...");
-          const { data: newProgress, error: createError } = await supabase
+          const { data: newProgress, error: createError } = await supabaseAdmin
             .from("user_progress")
             .insert([
               {
@@ -852,31 +892,32 @@ export const resolvers = {
 
         // 6. Update user progress
         console.log("Updating user progress...");
-        const { data: updatedProgress, error: updateError } = await supabase
-          .from("user_progress")
-          .upsert({
-            id: currentProgress?.id,
-            user_id: userId,
-            level: newLevel,
-            xp: newXp,
-            max_xp: newMaxXp,
-            total_points:
-              (currentProgress?.total_points || 0) + exercise.xp_reward,
-            // Update streak if this is the first exercise today
-            streak_count:
-              currentProgress?.last_streak_update &&
-              new Date().toDateString() ===
-                new Date(currentProgress.last_streak_update).toDateString()
-                ? currentProgress.streak_count
-                : (currentProgress?.streak_count || 0) + 1,
-            last_streak_update: new Date().toISOString(),
-            highest_streak: Math.max(
-              currentProgress?.highest_streak || 0,
-              currentProgress?.streak_count || 0
-            ),
-          })
-          .select()
-          .maybeSingle();
+        const { data: updatedProgress, error: updateError } =
+          await supabaseAdmin
+            .from("user_progress")
+            .upsert({
+              id: currentProgress?.id,
+              user_id: userId,
+              level: newLevel,
+              xp: newXp,
+              max_xp: newMaxXp,
+              total_points:
+                (currentProgress?.total_points || 0) + exercise.xp_reward,
+              // Update streak if this is the first exercise today
+              streak_count:
+                currentProgress?.last_streak_update &&
+                new Date().toDateString() ===
+                  new Date(currentProgress.last_streak_update).toDateString()
+                  ? currentProgress.streak_count
+                  : (currentProgress?.streak_count || 0) + 1,
+              last_streak_update: new Date().toISOString(),
+              highest_streak: Math.max(
+                currentProgress?.highest_streak || 0,
+                currentProgress?.streak_count || 0
+              ),
+            })
+            .select()
+            .maybeSingle();
 
         if (updateError) {
           console.error("Error updating progress:", updateError);
@@ -908,12 +949,13 @@ export const resolvers = {
     ) => {
       try {
         // Get current reading progress
-        const { data: currentProgress, error: progressError } = await supabase
-          .from("reading_progress")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("book_id", bookId)
-          .maybeSingle();
+        const { data: currentProgress, error: progressError } =
+          await supabaseAdmin
+            .from("reading_progress")
+            .select("*")
+            .eq("user_id", userId)
+            .eq("book_id", bookId)
+            .maybeSingle();
 
         if (progressError && progressError.code !== "PGRST116") {
           console.error("Error fetching reading progress:", progressError);
@@ -926,7 +968,7 @@ export const resolvers = {
             "Updating existing reading progress:",
             currentProgress.id
           );
-          const { data, error: updateError } = await supabase
+          const { data, error: updateError } = await supabaseAdmin
             .from("reading_progress")
             .update({
               words_flashed: wordsFlashed,
@@ -950,7 +992,7 @@ export const resolvers = {
             "book:",
             bookId
           );
-          const { data, error: createError } = await supabase
+          const { data, error: createError } = await supabaseAdmin
             .from("reading_progress")
             .insert([
               {
@@ -973,6 +1015,60 @@ export const resolvers = {
       } catch (error) {
         console.error("Error in updateReadingProgress:", error);
         throw error;
+      }
+    },
+    generateQuiz: async (_: any, { excerpt }: { excerpt: string }) => {
+      try {
+        if (!excerpt || typeof excerpt !== "string") return [];
+
+        const clipped = clip(excerpt, 1200); // smaller → faster
+        const key = sha1("v1|" + clipped);
+        const now = Date.now();
+
+        const hit = QUIZ_CACHE.get(key);
+        if (hit && now - hit.at < QUIZ_TTL_MS) return hit.items;
+
+        const r = await withTimeout(
+          openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            temperature: 0,
+            max_tokens: 500,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: QUIZ_SYSTEM },
+              { role: "user", content: makePrompt(clipped) },
+            ],
+          }),
+          LLM_TIMEOUT_MS
+        );
+
+        let items: any[] = [];
+        try {
+          const json = r.choices?.[0]?.message?.content ?? "{}";
+          const parsed = JSON.parse(json);
+          items = Array.isArray(parsed.items) ? parsed.items.slice(0, 8) : [];
+        } catch {
+          items = [];
+        }
+
+        const clean = items.map((q) => ({
+          question: String(q?.question ?? "").trim(),
+          options: (Array.isArray(q?.options) ? q.options : [])
+            .slice(0, 4)
+            .map(String),
+          correctAnswer: Math.min(
+            Math.max(Number(q?.correctAnswer ?? 0), 0),
+            3
+          ),
+          category:
+            q?.category === "memorization" ? "memorization" : "comprehension",
+        }));
+
+        QUIZ_CACHE.set(key, { at: now, items: clean });
+        return clean;
+      } catch (e) {
+        console.warn("generateQuiz failed:", (e as any)?.message || e);
+        return []; // ✅ never throw
       }
     },
   },
