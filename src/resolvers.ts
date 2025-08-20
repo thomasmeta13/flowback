@@ -370,7 +370,7 @@ export const resolvers = {
       }
     ) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("users")
           .insert([
             {
@@ -503,7 +503,7 @@ export const resolvers = {
         const email = decoded.email as string;
 
         // Check if user exists
-        const { data: existingUser, error: findError } = await supabase
+        const { data: existingUser, error: findError } = await supabaseAdmin
           .from("users")
           .select("*")
           .eq("email", email)
@@ -516,7 +516,7 @@ export const resolvers = {
         }
 
         // Create new user
-        const { data: newUser, error: createError } = await supabase
+        const { data: newUser, error: createError } = await supabaseAdmin
           .from("users")
           .insert([
             {
@@ -555,13 +555,15 @@ export const resolvers = {
       }
     ) => {
       try {
+        const normalizedDuration =
+          duration > 3600 * 24 ? Math.round(duration / 1000) : duration;
         const { data, error } = await supabaseAdmin
           .from("sessions")
           .insert([
             {
               user_id: userId,
               exercise_id: exerciseId,
-              duration,
+              duration: normalizedDuration,
               start_time: startTime,
               completed_exercises_count: 0,
               used_warmups: usedWarmups,
@@ -596,7 +598,7 @@ export const resolvers = {
       }
     ) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("sessions")
           .update({
             end_time: endTime,
