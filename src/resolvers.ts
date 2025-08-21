@@ -151,6 +151,30 @@ export const resolvers = {
       }
     },
 
+    getBreathingSettings: async (_: any, { userId }: { userId: string }) => {
+      try {
+        const { data, error } = await supabase
+          .from("user_settings")
+          .select("breathing_speed, breathing_pause_duration")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (error && error.code !== "PGRST116") {
+          throw error;
+        }
+
+        return data
+          ? {
+              speed: data.breathing_speed,
+              pauseDuration: data.breathing_pause_duration,
+            }
+          : null;
+      } catch (error) {
+        handleSupabaseError(error);
+        return null;
+      }
+    },
+
     libraryBooks: async (_: any, { userId }: { userId: string }) => {
       try {
         const { data, error } = await supabase
@@ -422,6 +446,77 @@ export const resolvers = {
 
       if (error) throw error;
       return data;
+    },
+
+    saveBreathingSettings: async (
+      _: any,
+      {
+        userId,
+        speed,
+        pauseDuration,
+      }: {
+        userId: string;
+        speed: number;
+        pauseDuration: number;
+      }
+    ) => {
+      try {
+        // Check if settings exist for user
+        const { data: existing, error: checkError } = await supabaseAdmin
+          .from("user_settings")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (checkError && checkError.code !== "PGRST116") {
+          throw checkError;
+        }
+
+        let result;
+
+        if (existing) {
+          // Update existing settings
+          const { data, error } = await supabaseAdmin
+            .from("user_settings")
+            .update({
+              breathing_speed: speed,
+              breathing_pause_duration: pauseDuration,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", userId)
+            .select()
+            .single();
+
+          if (error) throw error;
+          result = data;
+        } else {
+          // Create new settings
+          const { data, error } = await supabaseAdmin
+            .from("user_settings")
+            .insert([
+              {
+                user_id: userId,
+                breathing_speed: speed,
+                breathing_pause_duration: pauseDuration,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+            ])
+            .select()
+            .single();
+
+          if (error) throw error;
+          result = data;
+        }
+
+        return {
+          speed: result.breathing_speed,
+          pauseDuration: result.breathing_pause_duration,
+        };
+      } catch (error) {
+        handleSupabaseError(error);
+        throw error;
+      }
     },
 
     loginWithGoogle: async (_: any, { idToken }: { idToken: string }) => {

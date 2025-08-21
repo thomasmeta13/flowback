@@ -12,6 +12,11 @@ export const typeDefs = `#graphql
     timezone: String!
   }
 
+  type BreathingSettings {
+    speed: Float!
+    pauseDuration: Float!
+  }
+
   type Exercise {
     id: ID!
     name: String!
@@ -131,6 +136,7 @@ export const typeDefs = `#graphql
     getBookProgress(userId: ID!, bookId: ID!): ReadingProgress
     getBookRemainingContent(userId: ID!, bookId: ID!): String
     getBookProgressDetails(userId: ID!, bookId: ID!): BookProgressDetails
+    getBreathingSettings(userId: ID!): BreathingSettings
     userBadges(userId: ID!): [UserBadge!]!
     allBadges: [Badge!]!
     flows: [Flow]
@@ -168,6 +174,12 @@ export const typeDefs = `#graphql
     ): User!
 
     createDiagnostic(input: DiagnosticInput!): Diagnostic!
+
+    saveBreathingSettings(
+      userId: ID!
+      speed: Float!
+      pauseDuration: Float!
+    ): BreathingSettings!
 
     loginWithGoogle(idToken: String!): User!
 
