@@ -151,6 +151,94 @@ export const resolvers = {
       }
     },
 
+    sartResults: async (_: any, { userId }: { userId: string }) => {
+      try {
+        const { data, error } = await supabase
+          .from("sart_results")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        handleSupabaseError(error);
+        return [];
+      }
+    },
+
+    latestSartResult: async (_: any, { userId }: { userId: string }) => {
+      try {
+        const { data, error } = await supabase
+          .from("sart_results")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        handleSupabaseError(error);
+        return null;
+      }
+    },
+
+    sartAnalytics: async (_: any, { userId }: { userId: string }) => {
+      try {
+        const { data, error } = await supabase
+          .from("sart_results")
+          .select(
+            "accuracy_percentage, average_reaction_time, commission_errors, omission_errors, created_at"
+          )
+          .eq("user_id", userId)
+          .order("created_at", { ascending: true });
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          return {
+            averageAccuracy: 0,
+            averageReactionTime: 0,
+            improvementTrend: 0,
+            totalTests: 0,
+            latestScore: 0,
+          };
+        }
+
+        const totalTests = data.length;
+        const averageAccuracy =
+          data.reduce((sum, result) => sum + result.accuracy_percentage, 0) /
+          totalTests;
+        const averageReactionTime =
+          data.reduce((sum, result) => sum + result.average_reaction_time, 0) /
+          totalTests;
+        const latestScore = data[data.length - 1].accuracy_percentage;
+
+        // Calculate improvement trend (latest vs first)
+        const firstScore = data[0].accuracy_percentage;
+        const improvementTrend = totalTests > 1 ? latestScore - firstScore : 0;
+
+        return {
+          averageAccuracy,
+          averageReactionTime,
+          improvementTrend,
+          totalTests,
+          latestScore,
+        };
+      } catch (error) {
+        handleSupabaseError(error);
+        return {
+          averageAccuracy: 0,
+          averageReactionTime: 0,
+          improvementTrend: 0,
+          totalTests: 0,
+          latestScore: 0,
+        };
+      }
+    },
+
     getBreathingSettings: async (_: any, { userId }: { userId: string }) => {
       try {
         const { data, error } = await supabase
@@ -412,6 +500,172 @@ export const resolvers = {
         return data;
       } catch (error) {
         handleSupabaseError(error);
+      }
+    },
+
+    saveSartResult: async (_: any, { input }: { input: any }) => {
+      try {
+        const {
+          userId,
+          sessionId,
+          totalTrials,
+          correctGoTrials,
+          correctNoGoTrials,
+          commissionErrors,
+          omissionErrors,
+          averageReactionTime,
+          accuracyPercentage,
+          testType,
+          startedAt,
+          completedAt,
+          durationMs,
+          trialDetails,
+        } = input;
+
+        console.log("Saving SART result:", {
+          userId,
+          sessionId,
+          totalTrials,
+          accuracyPercentage,
+          testType,
+        });
+
+        const { data, error } = await supabaseAdmin
+          .from("sart_results")
+          .insert([
+            {
+              user_id: userId,
+              session_id: sessionId,
+              total_trials: totalTrials,
+              correct_go_trials: correctGoTrials,
+              correct_no_go_trials: correctNoGoTrials,
+              commission_errors: commissionErrors,
+              omission_errors: omissionErrors,
+              average_reaction_time: averageReactionTime,
+              accuracy_percentage: accuracyPercentage,
+              test_type: testType || "full",
+              started_at: startedAt,
+              completed_at: completedAt,
+              duration_ms: durationMs,
+              trial_details: trialDetails,
+            },
+          ])
+          .select()
+          .maybeSingle();
+
+        if (error) {
+          console.error("Error saving SART result:", error);
+          throw error;
+        }
+
+        console.log("SART result saved successfully:", data);
+        return data;
+      } catch (error) {
+        console.error("Error in saveSartResult mutation:", error);
+        handleSupabaseError(error);
+        throw error;
+      }
+    },
+
+    createSartSession: async (_: any, { userId }: { userId: string }) => {
+      try {
+        // Create a session specifically for SART test
+        const startTime = new Date().toISOString();
+
+        // Get SART exercise ID (you might need to create this exercise in your exercises table)
+        const { data: sartExercise, error: exerciseError } = await supabaseAdmin
+          .from("exercises")
+          .select("id")
+          .eq("slug", "sart-test") // or however you identify the SART exercise
+          .maybeSingle();
+
+        if (exerciseError) {
+          console.error("Error finding SART exercise:", exerciseError);
+          // If no specific SART exercise exists, you might want to create a generic one
+          // or handle this case differently
+        }
+
+        const { data: session, error: sessionError } = await supabaseAdmin
+          .from("sessions")
+          .insert([
+            {
+              user_id: userId,
+              exercise_id: sartExercise?.id || null, // Use null if no specific exercise
+              duration: 0, // Will be updated when completed
+              start_time: startTime,
+              completed_exercises_count: 0,
+              used_warmups: false,
+            },
+          ])
+          .select()
+          .maybeSingle();
+
+        if (sessionError) {
+          console.error("Error creating SART session:", sessionError);
+          throw sessionError;
+        }
+
+        console.log("SART session created:", session);
+        return session;
+      } catch (error) {
+        console.error("Error in createSartSession mutation:", error);
+        handleSupabaseError(error);
+        throw error;
+      }
+    },
+
+    completeSartSession: async (
+      _: any,
+      {
+        sessionId,
+        sartResults,
+      }: {
+        sessionId: string;
+        sartResults: any;
+      }
+    ) => {
+      try {
+        const endTime = new Date().toISOString();
+
+        // Update the session
+        const { data: session, error: sessionError } = await supabaseAdmin
+          .from("sessions")
+          .update({
+            end_time: endTime,
+            duration: sartResults.durationMs / 1000, // Convert to seconds
+            completed_exercises_count: 1,
+            performance_metrics: {
+              sartAccuracy: sartResults.accuracyPercentage,
+              sartReactionTime: sartResults.averageReactionTime,
+              sartCommissionErrors: sartResults.commissionErrors,
+              sartOmissionErrors: sartResults.omissionErrors,
+            },
+          })
+          .eq("id", sessionId)
+          .select()
+          .maybeSingle();
+
+        if (sessionError) {
+          console.error("Error updating SART session:", sessionError);
+          throw sessionError;
+        }
+
+        // Save the detailed SART results
+        const sartData = await sartResults(null, {
+          input: {
+            ...sartResults,
+            sessionId,
+          },
+        });
+
+        return {
+          session,
+          sartResult: sartData,
+        };
+      } catch (error) {
+        console.error("Error in completeSartSession mutation:", error);
+        handleSupabaseError(error);
+        throw error;
       }
     },
 

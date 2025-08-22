@@ -17,6 +17,56 @@ export const typeDefs = `#graphql
     pauseDuration: Float!
   }
 
+  type SartResult {
+    id: ID!
+    user_id: String!
+    session_id: String
+    total_trials: Int!
+    correct_go_trials: Int!
+    correct_no_go_trials: Int!
+    commission_errors: Int!
+    omission_errors: Int!
+    average_reaction_time: Float!
+    accuracy_percentage: Float!
+    test_type: String!
+    started_at: String!
+    completed_at: String!
+    duration_ms: Int!
+    trial_details: JSON
+    created_at: String!
+    updated_at: String!
+  }
+
+  type SartAnalytics {
+    averageAccuracy: Float!
+    averageReactionTime: Float!
+    improvementTrend: Float!
+    totalTests: Int!
+    latestScore: Float!
+  }
+
+  type SartSessionCompletion {
+    session: Session!
+    sartResult: SartResult!
+  }
+
+  input SartResultInput {
+    userId: String!
+    sessionId: String
+    totalTrials: Int!
+    correctGoTrials: Int!
+    correctNoGoTrials: Int!
+    commissionErrors: Int!
+    omissionErrors: Int!
+    averageReactionTime: Float!
+    accuracyPercentage: Float!
+    testType: String
+    startedAt: String!
+    completedAt: String!
+    durationMs: Int!
+    trialDetails: JSON
+  }
+
   type Exercise {
     id: ID!
     name: String!
@@ -141,6 +191,9 @@ export const typeDefs = `#graphql
     allBadges: [Badge!]!
     flows: [Flow]
     flowBySlug(slug: String!): Flow
+    sartResults(userId: String!): [SartResult!]!
+    latestSartResult(userId: String!): SartResult
+    sartAnalytics(userId: String!): SartAnalytics!
   }
 
   type Diagnostic {
@@ -186,6 +239,10 @@ export const typeDefs = `#graphql
     loginWithApple(idToken: String!): User!
 
     createDocument(userId: ID!, title: String!, content: String, fileUrl: String, fileType: String): Library
+
+    saveSartResult(input: SartResultInput!): SartResult!
+    createSartSession(userId: String!): Session!
+    completeSartSession(sessionId: String!, sartResults: SartResultInput!): SartSessionCompletion!
 
     createSession(
       userId: ID!
