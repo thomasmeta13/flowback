@@ -1,4 +1,4 @@
-import { supabase, handleSupabaseError, supabaseAdmin } from "./db/supabase";
+import { handleSupabaseError, supabaseAdmin } from "./db/supabase";
 import { jwtDecode } from "jwt-decode";
 import fetch from "node-fetch";
 import pdf from "pdf-parse";
