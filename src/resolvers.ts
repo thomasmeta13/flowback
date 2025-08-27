@@ -69,7 +69,7 @@ export const resolvers = {
   Query: {
     exercises: async () => {
       try {
-        const { data, error } = await supabase.from("exercises").select("*");
+        const { data, error } = await supabaseAdmin.from("exercises").select("*");
 
         if (error) throw error;
         return data;
@@ -81,7 +81,7 @@ export const resolvers = {
 
     exercise: async (_: any, { id }: { id: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("exercises")
           .select("*")
           .eq("id", id)
@@ -96,7 +96,7 @@ export const resolvers = {
 
     userProgress: async (_: any, { userId }: { userId: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("user_progress")
           .select("*")
           .eq("user_id", userId)
@@ -111,7 +111,7 @@ export const resolvers = {
 
     userSessions: async (_: any, { userId }: { userId: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("sessions")
           .select("*")
           .eq("user_id", userId);
@@ -126,7 +126,7 @@ export const resolvers = {
 
     users: async () => {
       try {
-        const { data, error } = await supabase.from("users").select("*");
+        const { data, error } = await supabaseAdmin.from("users").select("*");
 
         if (error) throw error;
         return data;
@@ -138,7 +138,7 @@ export const resolvers = {
 
     user: async (_: any, { id }: { id: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("users")
           .select("*")
           .eq("id", id)
@@ -153,7 +153,7 @@ export const resolvers = {
 
     sartResults: async (_: any, { userId }: { userId: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("sart_results")
           .select("*")
           .eq("user_id", userId)
@@ -169,7 +169,7 @@ export const resolvers = {
 
     latestSartResult: async (_: any, { userId }: { userId: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("sart_results")
           .select("*")
           .eq("user_id", userId)
@@ -187,7 +187,7 @@ export const resolvers = {
 
     sartAnalytics: async (_: any, { userId }: { userId: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("sart_results")
           .select(
             "accuracy_percentage, average_reaction_time, commission_errors, omission_errors, created_at"
@@ -241,7 +241,7 @@ export const resolvers = {
 
     getBreathingSettings: async (_: any, { userId }: { userId: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("user_settings")
           .select("breathing_speed, breathing_pause_duration")
           .eq("user_id", userId)
@@ -265,7 +265,7 @@ export const resolvers = {
 
     libraryBooks: async (_: any, { userId }: { userId: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("library")
           .select("*")
           .or(`uploaded_by.eq.${userId},uploaded_by.is.null`);
@@ -280,7 +280,7 @@ export const resolvers = {
 
     userBadges: async (_: any, { userId }: { userId: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("user_badges")
           .select("*, badge:badges(*)")
           .eq("user_id", userId);
@@ -303,7 +303,7 @@ export const resolvers = {
     },
 
     allBadges: async () => {
-      const { data, error } = await supabase.from("badges").select("*");
+      const { data, error } = await supabaseAdmin.from("badges").select("*");
 
       if (error) throw new Error(error.message);
       return data;
@@ -313,7 +313,7 @@ export const resolvers = {
       _: any,
       { userId, bookId }: { userId: string; bookId: string }
     ) => {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("reading_progress")
         .select("*")
         .eq("user_id", userId)
@@ -328,7 +328,7 @@ export const resolvers = {
       { userId, bookId }: { userId: string; bookId: string }
     ) => {
       // 1. Fetch the book
-      const { data: book, error: bookError } = await supabase
+      const { data: book, error: bookError } = await supabaseAdmin
         .from("library")
         .select("content")
         .eq("id", bookId)
@@ -342,7 +342,7 @@ export const resolvers = {
       }
 
       // 2. Fetch the reading progress
-      const { data: progress, error: progressError } = await supabase
+      const { data: progress, error: progressError } = await supabaseAdmin
         .from("reading_progress")
         .select("last_position")
         .eq("user_id", userId)
@@ -366,7 +366,7 @@ export const resolvers = {
       { userId, bookId }: { userId: string; bookId: string }
     ) => {
       // 1. Fetch the book
-      const { data: book, error: bookError } = await supabase
+      const { data: book, error: bookError } = await supabaseAdmin
         .from("library")
         .select("content")
         .eq("id", bookId)
@@ -381,7 +381,7 @@ export const resolvers = {
         };
 
       // 2. Fetch the reading progress
-      const { data: progress, error: progressError } = await supabase
+      const { data: progress, error: progressError } = await supabaseAdmin
         .from("reading_progress")
         .select("last_position")
         .eq("user_id", userId)
@@ -403,7 +403,7 @@ export const resolvers = {
         );
         last_position = 0;
         // Update the reading progress in the database
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseAdmin
           .from("reading_progress")
           .update({ last_position: 0 })
           .eq("user_id", userId)
@@ -427,7 +427,7 @@ export const resolvers = {
 
     flows: async () => {
       try {
-        const { data, error } = await supabase.from("flows").select("*");
+        const { data, error } = await supabaseAdmin.from("flows").select("*");
         if (error) throw error;
         return data;
       } catch (error) {
@@ -438,7 +438,7 @@ export const resolvers = {
 
     flowBySlug: async (_: any, { slug }: { slug: string }) => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("flows")
           .select("*")
           .eq("slug", slug)
@@ -681,7 +681,7 @@ export const resolvers = {
         device_id,
       } = input;
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("diagnostic")
         .insert([
           {
@@ -995,7 +995,7 @@ export const resolvers = {
         const wordCount = wordList.length;
         const estimatedTime = Math.ceil(wordCount / 200);
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("library")
           .insert([
             {
@@ -1426,7 +1426,7 @@ export const resolvers = {
   Flow: {
     exercises: async (parent: any) => {
       // parent.id is the flow id
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("flow_exercises")
         .select("id, sequence_order, exercise:exercises(*)")
         .eq("flow_id", parent.id)
