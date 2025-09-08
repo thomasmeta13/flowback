@@ -69,7 +69,9 @@ export const resolvers = {
   Query: {
     exercises: async () => {
       try {
-        const { data, error } = await supabaseAdmin.from("exercises").select("*");
+        const { data, error } = await supabaseAdmin
+          .from("exercises")
+          .select("*");
 
         if (error) throw error;
         return data;
@@ -1420,6 +1422,240 @@ export const resolvers = {
       } catch (e) {
         console.warn("generateQuiz failed:", (e as any)?.message || e);
         return []; // ✅ never throw
+      }
+    },
+    // Add this to your GraphQL resolvers
+    generatePictureWordContent: async (
+      _: any,
+      {
+        duration,
+        theme = "nature",
+        userId,
+      }: {
+        duration: number;
+        theme?: string;
+        userId: string;
+      }
+    ) => {
+      try {
+        // Calculate how many unique pairs we need
+        const IMAGE_DISPLAY_DURATION = 3000; // 3 seconds per pair
+        const requiredPairs = Math.ceil(
+          (duration * 1000) / IMAGE_DISPLAY_DURATION
+        );
+
+        // Add 20% buffer to ensure no repetition
+        const pairsToGenerate = Math.ceil(requiredPairs * 1.2);
+
+        console.log(
+          `Generating ${pairsToGenerate} unique pairs for ${duration}s session`
+        );
+
+        // Generate sentences using OpenAI
+        const sentencePrompt = `Generate ${pairsToGenerate} unique, meditative sentences about ${theme}. 
+    Each sentence should be:
+    - 8-15 words long
+    - Calming and contemplative
+    - About natural elements, emotions, or peaceful concepts
+    - Completely different from each other
+    - Suitable for meditation practice
+    
+    Return as JSON array of strings only, no explanations:
+    ["sentence1", "sentence2", ...]`;
+
+        const sentenceResponse = await withTimeout(
+          openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            temperature: 0.8, // Higher creativity for variety
+            max_tokens: 1000,
+            response_format: { type: "json_object" },
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You generate diverse, meditative sentences for mindfulness practice. Return valid JSON only.",
+              },
+              {
+                role: "user",
+                content: `{"sentences": ${sentencePrompt}}`,
+              },
+            ],
+          }),
+          LLM_TIMEOUT_MS
+        );
+
+        let sentences: string[] = [];
+        try {
+          const json = sentenceResponse.choices?.[0]?.message?.content ?? "{}";
+          const parsed = JSON.parse(json);
+          sentences = Array.isArray(parsed.sentences) ? parsed.sentences : [];
+        } catch (error) {
+          console.error("Error parsing sentences:", error);
+          sentences = [];
+        }
+
+        // Generate image search terms using OpenAI
+        const imagePrompt = `Generate ${pairsToGenerate} unique image search terms for peaceful, meditative images.
+    Each term should be:
+    - 1-3 words only
+    - Related to nature, wellness, or tranquility
+    - Suitable for finding calming stock photos
+    - Completely different from each other
+    
+    Examples: "mountain lake", "forest path", "ocean waves", "sunset sky"
+    
+    Return as JSON array of strings:`;
+
+        const imageResponse = await withTimeout(
+          openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            temperature: 0.9, // High creativity for diverse terms
+            max_tokens: 500,
+            response_format: { type: "json_object" },
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You generate diverse search terms for peaceful stock photos. Return valid JSON only.",
+              },
+              {
+                role: "user",
+                content: `{"searchTerms": ${imagePrompt}}`,
+              },
+            ],
+          }),
+          LLM_TIMEOUT_MS
+        );
+
+        let imageSearchTerms: string[] = [];
+        try {
+          const json = imageResponse.choices?.[0]?.message?.content ?? "{}";
+          const parsed = JSON.parse(json);
+          imageSearchTerms = Array.isArray(parsed.searchTerms)
+            ? parsed.searchTerms
+            : [];
+        } catch (error) {
+          console.error("Error parsing image terms:", error);
+          imageSearchTerms = [];
+        }
+
+        // Fetch images from Pexels using generated search terms
+        const imageUrls: Array<{
+          id: string;
+          url: string;
+          alt: string;
+          photographer: string;
+        }> = [];
+
+        for (
+          let i = 0;
+          i < Math.min(imageSearchTerms.length, pairsToGenerate);
+          i++
+        ) {
+          try {
+            const searchTerm = imageSearchTerms[i];
+            const response = await fetch(
+              `https://api.pexels.com/v1/search?query=${encodeURIComponent(searchTerm)}&per_page=1&orientation=landscape`,
+              {
+                headers: {
+                  Authorization: process.env.PEXELS_API_KEY!,
+                },
+              }
+            );
+
+            if (response.ok) {
+              const data = await response.json();
+              if (data.photos && data.photos.length > 0) {
+                const photo = data.photos[0];
+                imageUrls.push({
+                  id: `ai_${photo.id}_${Date.now()}_${i}`,
+                  url: photo.src.medium,
+                  alt: searchTerm,
+                  photographer: photo.photographer,
+                });
+              }
+            }
+          } catch (error) {
+            console.error(
+              `Error fetching image for term "${imageSearchTerms[i]}":`,
+              error
+            );
+          }
+        }
+
+        // Create pairs, ensuring we have enough content
+        const pairs = [];
+        const maxPairs = Math.max(sentences.length, imageUrls.length);
+
+        for (let i = 0; i < pairsToGenerate && i < maxPairs; i++) {
+          pairs.push({
+            id: `pair_${Date.now()}_${i}`,
+            sentence:
+              sentences[i % sentences.length] ||
+              `The universe holds infinite mysteries waiting to be discovered.`,
+            image: imageUrls[i % imageUrls.length] || {
+              id: `fallback_${i}`,
+              url: "https://images.pexels.com/photos/814499/pexels-photo-814499.jpeg",
+              alt: "peaceful nature",
+              photographer: "Pexels",
+            },
+            searchTerm:
+              imageSearchTerms[i % imageSearchTerms.length] || "nature",
+          });
+        }
+
+        // Store session content for quiz generation later
+        await supabaseAdmin.from("session_content").insert([
+          {
+            user_id: userId,
+            session_id: `session_${Date.now()}_${userId}`,
+            content_type: "picture_word_pairs",
+            content_data: pairs,
+            duration: duration,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+
+        return {
+          pairs,
+          totalGenerated: pairs.length,
+          sessionDuration: duration,
+          theme,
+        };
+      } catch (error) {
+        console.error("Error generating picture-word content:", error);
+
+        // Fallback to basic content if AI generation fails
+        const fallbackPairs = [];
+        const fallbackSentences = [
+          "The mountain stands tall against the horizon.",
+          "Waves crash against the shore with rhythmic persistence.",
+          "The forest whispers secrets to those who listen.",
+          "Stars twinkle like distant memories in the night sky.",
+          "The desert stretches endlessly toward the horizon.",
+        ];
+
+        for (let i = 0; i < 20; i++) {
+          fallbackPairs.push({
+            id: `fallback_${i}`,
+            sentence: fallbackSentences[i % fallbackSentences.length],
+            image: {
+              id: `fallback_img_${i}`,
+              url: "https://images.pexels.com/photos/814499/pexels-photo-814499.jpeg",
+              alt: "peaceful nature",
+              photographer: "Pexels",
+            },
+            searchTerm: "nature",
+          });
+        }
+
+        return {
+          pairs: fallbackPairs,
+          totalGenerated: fallbackPairs.length,
+          sessionDuration: duration,
+          theme,
+          fallback: true,
+        };
       }
     },
   },
