@@ -1372,20 +1372,32 @@ export const resolvers = {
     },
     generateQuiz: async (_: any, { excerpt }: { excerpt: string }) => {
       try {
-        if (!excerpt || typeof excerpt !== "string") return [];
+        if (
+          !excerpt ||
+          typeof excerpt !== "string" ||
+          excerpt.trim().length < 50
+        ) {
+          console.log("Invalid excerpt provided for quiz generation");
+          return [];
+        }
 
-        const clipped = clip(excerpt, 1200); // smaller → faster
+        const clipped = clip(excerpt, 1200);
         const key = sha1("v1|" + clipped);
         const now = Date.now();
 
         const hit = QUIZ_CACHE.get(key);
-        if (hit && now - hit.at < QUIZ_TTL_MS) return hit.items;
+        if (hit && now - hit.at < QUIZ_TTL_MS) {
+          console.log("Returning cached quiz:", hit.items.length, "questions");
+          return hit.items;
+        }
+
+        console.log("Generating new quiz for excerpt length:", clipped.length);
 
         const r = await withTimeout(
           openai.chat.completions.create({
             model: "gpt-4o-mini",
             temperature: 0,
-            max_tokens: 500,
+            max_tokens: 800,
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: QUIZ_SYSTEM },
@@ -1398,30 +1410,47 @@ export const resolvers = {
         let items: any[] = [];
         try {
           const json = r.choices?.[0]?.message?.content ?? "{}";
+          console.log("OpenAI response:", json.substring(0, 200) + "...");
           const parsed = JSON.parse(json);
           items = Array.isArray(parsed.items) ? parsed.items.slice(0, 8) : [];
-        } catch {
+        } catch (parseError) {
+          console.error("Failed to parse OpenAI response:", parseError);
           items = [];
         }
 
-        const clean = items.map((q) => ({
-          question: String(q?.question ?? "").trim(),
-          options: (Array.isArray(q?.options) ? q.options : [])
-            .slice(0, 4)
-            .map(String),
-          correctAnswer: Math.min(
-            Math.max(Number(q?.correctAnswer ?? 0), 0),
-            3
-          ),
-          category:
-            q?.category === "memorization" ? "memorization" : "comprehension",
-        }));
+        const clean = items
+          .filter(
+            (q) =>
+              q?.question &&
+              q?.options &&
+              Array.isArray(q.options) &&
+              q.options.length >= 4
+          )
+          .map((q) => ({
+            question: String(q?.question ?? "").trim(),
+            options: (Array.isArray(q?.options) ? q.options : [])
+              .slice(0, 4)
+              .map(String)
+              .filter((opt: string) => opt && opt.trim()),
+            correctAnswer: Math.min(
+              Math.max(Number(q?.correctAnswer ?? 0), 0),
+              3
+            ),
+            category:
+              q?.category === "memorization" ? "memorization" : "comprehension",
+          }))
+          .filter((q) => q.question && q.options.length === 4);
 
-        QUIZ_CACHE.set(key, { at: now, items: clean });
+        console.log("Generated quiz questions:", clean.length);
+
+        if (clean.length > 0) {
+          QUIZ_CACHE.set(key, { at: now, items: clean });
+        }
+
         return clean;
       } catch (e) {
         console.warn("generateQuiz failed:", (e as any)?.message || e);
-        return []; // ✅ never throw
+        return [];
       }
     },
     // Add this to your GraphQL resolvers
