@@ -299,4 +299,30 @@ export const typeDefs = `#graphql
   extend type Mutation {
     getSignedUploadUrl(userId: ID!, fileName: String!): SignedUploadPayload!
   }
+
+  type PictureWordImage {
+    id: String!
+    url: String!
+    alt: String!
+    photographer: String!
+  }
+
+  type PictureWordPair {
+    id: String!
+    sentence: String!
+    image: PictureWordImage!
+    searchTerm: String!
+  }
+
+  type PictureWordContent {
+    pairs: [PictureWordPair!]!
+    totalGenerated: Int!
+    sessionDuration: Int!
+    theme: String!
+    fallback: Boolean
+  }
+
+  extend type Mutation {
+    generatePictureWordContent(duration: Int!, theme: String, userId: ID!): PictureWordContent!
+  }
 `;
